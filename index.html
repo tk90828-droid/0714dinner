@@ -5,10 +5,8 @@
 <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>7/14 蟹膏晚宴｜VIP EXCLUSIVE DINING</title>
-<!-- 網頁描述 (搜尋引擎與分享時會用到) -->
 <meta name="description" content="誠摯邀請您參與這場專屬的豪華蟹膏晚宴，享受頂級美食與尊榮服務，請點此進入查看菜單與預約。">
 
-<!-- Open Graph 設定 (專給 LINE、FB、IG 等社群軟體抓取預覽畫面用) -->
 <meta property="og:title" content="7/14 蟹膏晚宴｜VIP EXCLUSIVE DINING">
 <meta property="og:description" content="誠摯邀請您參與這場專屬的豪華蟹膏晚宴，享受頂級美食與尊榮服務，請點此進入查看菜單與預約。">
 <meta property="og:image" content="https://cdn-general.cybassets.com/s/files/35135/theme/127586/assets/dinner2.jpg">
@@ -290,6 +288,14 @@
   .stat-num { font-size: 28px; font-weight: 600; color: var(--gold); font-family: 'Playfair Display', serif;}
   .stat-label { font-size: 11px; color: var(--text3); letter-spacing: 0.1em; margin-top: 8px; }
   
+  /* 後台分類篩選按鈕 */
+  .admin-filter-btn {
+    padding: 6px 14px; background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 100px; color: var(--text2); font-size: 13px; cursor: pointer; transition: 0.3s; white-space: nowrap;
+  }
+  .admin-filter-btn.active {
+    background: rgba(212, 175, 55, 0.15); border-color: var(--gold); color: var(--gold2);
+  }
+
   .admin-table-wrap { 
     overflow-x: auto; 
     overflow-y: auto;
@@ -299,7 +305,7 @@
     width: 100%; 
     border-collapse: collapse; 
     font-size: 12px;
-    min-width: 900px;
+    min-width: 950px;
   }
   th { 
     text-align: left; 
@@ -621,13 +627,19 @@
         <span style="font-size: 14px; color: var(--gold); font-weight: 600; letter-spacing: 0.1em;">訂單列表</span>
         <button onclick="refreshAdminData()" id="admin-refresh-btn" style="padding:6px 12px; background:transparent; border:1px solid var(--gold); border-radius:6px; color:var(--gold); font-size:12px; cursor:pointer;">🔄 更新</button>
       </div>
+      <div style="padding: 12px 16px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 8px; overflow-x: auto;">
+        <button class="admin-filter-btn active" onclick="setAdminFilter('all', this)">全部名單</button>
+        <button class="admin-filter-btn" onclick="setAdminFilter('unpaid', this)">未付款</button>
+        <button class="admin-filter-btn" onclick="setAdminFilter('verifying', this)">待核對</button>
+        <button class="admin-filter-btn" onclick="setAdminFilter('paid', this)">已付款</button>
+      </div>
       <div class="admin-table-wrap">
         <table id="adminTable">
           <thead>
-            <tr><th>姓名</th><th>電話</th><th>主餐</th><th>總額</th><th>備註</th><th>狀態</th><th>操作</th></tr>
+            <tr><th>姓名</th><th>電話</th><th>主餐</th><th>總額</th><th>末五碼</th><th>備註</th><th>狀態</th><th>操作</th></tr>
           </thead>
           <tbody id="adminTableBody">
-            <tr><td colspan="7" style="text-align:center;padding:24px">讀取中...</td></tr>
+            <tr><td colspan="8" style="text-align:center;padding:24px">讀取中...</td></tr>
           </tbody>
         </table>
       </div>
@@ -641,6 +653,7 @@
 // ── CONFIG ──
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwWmJ1-8Y823TDIwUNDUna-Va9VMS8wZVcocGEaKuuCHzu_fFKLR5b20ihPPsmFMK_i/exec";
 let adminGlobalData = [];
+let currentAdminFilter = 'all';
 
 // ── UTILS ──
 function switchTab(name, btn) {
@@ -1182,16 +1195,39 @@ function calcAdminStats() {
   document.getElementById('stat-amount').textContent = '$' + revenue.toLocaleString();
 }
 
+function setAdminFilter(filter, btn) {
+  currentAdminFilter = filter;
+  document.querySelectorAll('.admin-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAdminTable();
+}
+
 function renderAdminTable() {
   const tbody = document.getElementById('adminTableBody');
   tbody.innerHTML = '';
 
-  if(adminGlobalData.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px">尚無訂位資料</td></tr>';
+  let filteredData = adminGlobalData;
+  
+  // 篩選邏輯
+  if (currentAdminFilter !== 'all') {
+    filteredData = adminGlobalData.filter(row => {
+      let status = row.payStatus;
+      let isPaid = status === '已付款' || status === '主揪代付';
+      let isVerifying = status === '帳款確認中' || (row.hasTransferInfo && !isPaid);
+
+      if (currentAdminFilter === 'paid') return isPaid;
+      if (currentAdminFilter === 'verifying') return isVerifying;
+      if (currentAdminFilter === 'unpaid') return !isPaid && !isVerifying; 
+      return true;
+    });
+  }
+
+  if(filteredData.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px">尚無符合條件的資料</td></tr>';
     return;
   }
 
-  adminGlobalData.forEach(row => {
+  filteredData.forEach(row => {
     let dispName = row.name; 
     
     if(row.mainPhone) {
@@ -1217,6 +1253,7 @@ function renderAdminTable() {
 
     const mCourse = row.mainCourse || row.shuttle || '未點餐';
     const mRemarks = row.remarks ? `<span style="color:var(--gold2); font-size:12px;">${row.remarks}</span>` : '--';
+    const mAccount5 = row.account5 ? `<span style="color:var(--warn); font-family:monospace;">${row.account5}</span>` : '--';
 
     tbody.innerHTML += `
       <tr>
@@ -1224,6 +1261,7 @@ function renderAdminTable() {
         <td style="font-family:monospace;letter-spacing:0.05em">${mPhone}</td>
         <td style="color:var(--text); font-weight:500;">${mCourse}</td>
         <td style="font-weight:600;color:var(--gold2)">$${row.total}</td>
+        <td>${mAccount5}</td>
         <td class="remarks-cell">${mRemarks}</td>
         <td>${statusHtml}</td>
         <td>${btnHtml}</td>
